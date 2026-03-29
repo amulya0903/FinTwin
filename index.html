@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AI Money Mentor</title>
+</head>
+<body>
+
+<h2>AI Money Mentor</h2>
+
+<input id="income" placeholder="Monthly Income"><br><br>
+<input id="expenses" placeholder="Monthly Expenses"><br><br>
+
+<button onclick="analyze()">Analyze</button>
+
+<pre id="result"></pre>
+
+<script>
+function analyze() {
+  const income = parseInt(document.getElementById("income").value);
+  const expenses = parseInt(document.getElementById("expenses").value);
+
+  fetch("http://127.0.0.1:8000/analyze", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ income, expenses })
+  })
+  .then(res => res.json())
+  .then(data => {
+  document.getElementById("result").innerText =
+    `Savings: ₹${data.savings}
+SIP: ₹${data.sip}
+Health Score: ${data.health_score}
+
+Advice:
+${data.advice}`;
+});
+}
+</script>
+
+</body>
+</html>
