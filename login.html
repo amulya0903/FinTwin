@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Fintwin</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #ecf2ef;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    .card {
+      background: white;
+      padding: 32px;
+      width: 320px;
+      border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+
+    h2 {
+      margin-bottom: 20px;
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #4f8a8b;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 12px;
+      background-color: #4f8a8b;
+      color: rgb(255, 255, 255);
+      border: none;
+      border-radius: 6px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #3b6f70;
+    }
+
+    .switch {
+      margin-top: 12px;
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .switch a {
+      color: #2563eb;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .switch a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="card">
+  <h2 id="title">Login</h2>
+
+  <input id="username" placeholder="Username">
+  <input id="password" type="password" placeholder="Password">
+
+  <button onclick="submitForm()">Login</button>
+
+  <div class="switch">
+    <span id="toggleText">Don’t have an account?</span>
+    <a onclick="toggleMode()">Sign up</a>
+  </div>
+</div>
+
+<script>
+let isLogin = true;
+
+function toggleMode() {
+  isLogin = !isLogin;
+
+  document.getElementById("title").innerText = isLogin ? "Login" : "Sign Up";
+  document.querySelector("button").innerText = isLogin ? "Login" : "Sign Up";
+  document.getElementById("toggleText").innerText = isLogin
+    ? "Don’t have an account?"
+    : "Already have an account?";
+  document.querySelector(".switch a").innerText = isLogin ? "Sign up" : "Login";
+}
+
+function submitForm() {
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
+
+  const url = isLogin ? "login" : "signup";
+
+  fetch(`http://127.0.0.1:8000/${url}`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ username, password })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (isLogin && data.user_id) {
+      localStorage.setItem("user_id", data.user_id);
+      window.location.href = "dashboard.html";
+    } else {
+      alert(data.message);
+    }
+  });
+}
+</script>
+
+</body>
+</html>
