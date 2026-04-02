@@ -4,6 +4,27 @@ from fastapi.middleware.cors import CORSMiddleware
 from groq import Groq
 from dotenv import load_dotenv
 import os
+from database import engine
+from models import Base
+from database import SessionLocal
+from models import User, FinancialData
+
+Base.metadata.create_all(bind=engine)
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+
+class FinancialInput(BaseModel):
+    user_id: int
+    income: int
+    expenses: int
+    goal: str
+    target_amount: int
+    savings: int = 0
+    investment_type: str = ""
+    investment_amount: int = 0
+
 
 load_dotenv()
 
@@ -25,21 +46,55 @@ client = Groq(api_key=api_key)
 
 # Define structure of input data
 class UserData(BaseModel):
+    age: int
     income: int
     expenses: int
+    goal: str
+    target_amount: int
+    time: int
 
-def ai_explainer(income, expenses, savings):
+def ai_explainer(age, income, expenses, savings, goal, target_amount, time):
     print("AI FUNCTION CALLED")
 
-    prompt = f"Income: {income}, Expenses: {expenses}, Savings: {savings}. Give short financial advice."
+    prompt = f"""
+You are a sharp, realistic financial advisor.
 
+User:
+- Age: {age}
+- Income: {income}
+- Expenses: {expenses}
+- Savings: {savings}
+- Goal: {goal}
+- Target: {target_amount}
+- Time: {time} months
+
+Your job:
+- Analyze behavior (not just math)
+- Be honest and slightly critical if needed
+- Avoid generic advice
+- No calculations in output
+
+Output format:
+
+Financial Personality:
+(1 line describing user habit)
+
+Reality Check:
+(1–2 lines about whether goal is realistic)
+
+Smart Moves:
+- 3 specific, practical suggestions
+
+Trade-off Insight:
+(1 powerful line like “If you continue this lifestyle…”)
+"""
     try:
         response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=100,
+            max_tokens=500,
         )
 
         print("AI RESPONSE RECEIVED")
@@ -51,45 +106,88 @@ def ai_explainer(income, expenses, savings):
         print(e)
         print("<<<<<<<<<<<<<<<<<<<<<<<")
         return "AI advice unavailable"
-# def generate_advice(income, expenses, savings):
-#     advice = ""
+    
+@app.post("/signup")
+def signup(user: UserCreate):
+    db = SessionLocal()
 
-#     if savings <= 0:
-#         advice += "You are overspending. Reduce unnecessary expenses immediately."
-#     else:
-#         advice += f"You are saving ₹{savings} per month."
+    existing = db.query(User).filter(User.username == user.username).first()
+    if existing:
+        return {"message": "User already exists"}
 
-#     # Emergency fund
-#     emergency = expenses * 6
-#     advice += f"Build an emergency fund of ₹{emergency}."
+    new_user = User(username=user.username, password=user.password)
+    db.add(new_user)
+    db.commit()
 
-#     # Investment suggestion
-#     if savings > 0:
-#         sip = int(savings * 0.7)
-#         advice += f"Invest around ₹{sip} monthly in SIPs."
+    return {"message": "User created"}
 
-#     # Basic insight
-#     savings_rate = (savings / income) * 100 if income > 0 else 0
+@app.post("/login")
+def login(user: UserCreate):
+    db = SessionLocal()
 
-#     if savings_rate < 20:
-#         advice += "Your savings rate is low. Try to increase it."
-#     else:
-#         advice += "Your savings rate is healthy."
+    existing = db.query(User).filter(
+        User.username == user.username,
+        User.password == user.password
+    ).first()
 
-#     return advice
+    if not existing:
+        return {"message": "Invalid credentials"}
+
+    return {"message": "Login successful", "user_id": existing.id}
+
+@app.post("/save-financial-data")
+def save_data(data: FinancialInput):
+    db = SessionLocal()
+
+    existing = db.query(FinancialData).filter(
+        FinancialData.user_id == data.user_id
+    ).first()
+
+    if existing:
+        # update existing
+        existing.income = data.income
+        existing.expenses = data.expenses
+        existing.goal = data.goal
+        existing.target_amount = data.target_amount
+        existing.savings = data.savings
+        existing.investment_type = data.investment_type
+        existing.investment_amount = data.investment_amount
+    else:
+        # create new
+        new_data = FinancialData(
+            user_id=data.user_id,
+            income=data.income,
+            expenses=data.expenses,
+            goal=data.goal,
+            target_amount=data.target_amount,
+            savings=data.savings,
+            investment_type=data.investment_type,
+            investment_amount=data.investment_amount
+        )
+        db.add(new_data)
+
+    db.commit()
+
+    return {"message": "Financial data saved"}
+
 
 # Create POST API
 @app.post("/analyze")
 def analyze(data: UserData):
     savings = data.income - data.expenses
     emergency_fund = data.expenses * 6
+
     health_score = int((savings / data.income) * 100) if data.income > 0 else 0
 
     advice = ai_explainer(
-    data.income,
-    data.expenses,
-    savings
-)
+        data.age,
+        data.income,
+        data.expenses,
+        savings,
+        data.goal,
+        data.target_amount,
+        data.time
+    )
 
     return {
         "savings": savings,
@@ -97,3 +195,4 @@ def analyze(data: UserData):
         "health_score": health_score,
         "advice": advice
     }
+
