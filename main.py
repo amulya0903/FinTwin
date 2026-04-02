@@ -196,3 +196,10 @@ def analyze(data: UserData):
         "advice": advice
     }
 
+
+
+
+
+
+
+
