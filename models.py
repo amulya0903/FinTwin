@@ -25,3 +25,15 @@ class FinancialData(Base):
 
     investment_type = Column(String)   # e.g. "SIP, Stocks"
     investment_amount = Column(Integer)
+
+    daily_limit = Column(Integer)
+
+
+class DailySpending(Base):
+    __tablename__ = "daily_spending"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+
+    amount = Column(Integer)
+    date = Column(String)  # store as "YYYY-MM-DD"

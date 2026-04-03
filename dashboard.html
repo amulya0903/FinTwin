@@ -175,6 +175,7 @@
     </div>
     
   <button onclick="saveData()">Save</button>
+  <pre id="result" style="margin-top:20px; white-space: pre-wrap;"></pre>
 </div>
 
 <script>
@@ -234,7 +235,9 @@ function saveData() {
   })
   .then(res => res.json())
   .then(data => {
-    alert(data.message);
+    localStorage.setItem("ai_advice", JSON.stringify(data.advice));
+
+    window.location.href = "main.html";
   });
 }
 </script>
