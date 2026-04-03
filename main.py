@@ -7,7 +7,9 @@ import os
 from database import engine
 from models import Base
 from database import SessionLocal
-from models import User, FinancialData
+from models import User, FinancialData, DailySpending
+from datetime import datetime
+
 
 Base.metadata.create_all(bind=engine)
 
@@ -24,6 +26,16 @@ class FinancialInput(BaseModel):
     savings: int = 0
     investment_type: str = ""
     investment_amount: int = 0
+    daily_limit: int
+
+class SpendingInput(BaseModel):
+    user_id: int
+    amount: int
+
+class LimitInput(BaseModel):
+    user_id: int
+    daily_limit: int
+
 
 
 load_dotenv()
@@ -144,7 +156,6 @@ def save_data(data: FinancialInput):
     ).first()
 
     if existing:
-        # update existing
         existing.income = data.income
         existing.expenses = data.expenses
         existing.goal = data.goal
@@ -152,8 +163,8 @@ def save_data(data: FinancialInput):
         existing.savings = data.savings
         existing.investment_type = data.investment_type
         existing.investment_amount = data.investment_amount
+        existing.daily_limit = data.daily_limit
     else:
-        # create new
         new_data = FinancialData(
             user_id=data.user_id,
             income=data.income,
@@ -162,40 +173,109 @@ def save_data(data: FinancialInput):
             target_amount=data.target_amount,
             savings=data.savings,
             investment_type=data.investment_type,
-            investment_amount=data.investment_amount
+            investment_amount=data.investment_amount,
+            daily_limit=data.daily_limit
         )
         db.add(new_data)
 
     db.commit()
 
-    return {"message": "Financial data saved"}
-
-
-# Create POST API
-@app.post("/analyze")
-def analyze(data: UserData):
+    # --- AI PART STARTS HERE ---
     savings = data.income - data.expenses
-    emergency_fund = data.expenses * 6
 
-    health_score = int((savings / data.income) * 100) if data.income > 0 else 0
+    prompt = f"""
+You are a smart financial advisor.
 
-    advice = ai_explainer(
-        data.age,
-        data.income,
-        data.expenses,
-        savings,
-        data.goal,
-        data.target_amount,
-        data.time
-    )
+User:
+- Income: {data.income}
+- Expenses: {data.expenses}
+- Savings: {savings}
+- Goal: {data.goal}
+- Target: {data.target_amount}
 
+Instructions:
+- No calculations in output
+- Be practical and slightly critical
+- Give clear insight
+
+Output:
+
+Financial Personality:
+Reality Check:
+Smart Moves:
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=400,
+        )
+
+        advice = response.choices[0].message.content
+
+    except:
+        advice = "AI unavailable"
+
+    # --- RETURN AI RESPONSE ---
     return {
-        "savings": savings,
-        "emergency_fund": emergency_fund,
-        "health_score": health_score,
+        "message": "Financial data saved",
         "advice": advice
     }
 
+@app.post("/set-limit")
+def set_limit(data: LimitInput):
+    db = SessionLocal()
+
+    user_data = db.query(FinancialData).filter(
+        FinancialData.user_id == data.user_id
+    ).first()
+
+    if user_data:
+        user_data.daily_limit = data.daily_limit
+    else:
+        user_data = FinancialData(
+            user_id=data.user_id,
+            daily_limit=data.daily_limit
+        )
+        db.add(user_data)
+
+    db.commit()
+
+    return {"message": "Limit saved"}
+
+@app.post("/add-spending")
+def add_spending(data: SpendingInput):
+    db = SessionLocal()
+
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    new_entry = DailySpending(
+        user_id=data.user_id,
+        amount=data.amount,
+        date=today
+    )
+
+    db.add(new_entry)
+
+    # GET USER LIMIT
+    user_data = db.query(FinancialData).filter(
+        FinancialData.user_id == data.user_id
+    ).first()
+
+    warning = None
+
+    if user_data and user_data.daily_limit:
+        if data.amount > user_data.daily_limit:
+            excess = data.amount - user_data.daily_limit
+            warning = f"You exceeded your limit by ₹{excess}"
+
+    db.commit()
+
+    return {
+        "message": "Spending added",
+        "warning": warning
+    }
 
 
 
